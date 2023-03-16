@@ -6,6 +6,7 @@ use statrs::distribution::Laplace;
 use std::collections::HashMap;
 use tracing::{debug, info, warn};
 
+
 #[derive(Debug, Deserialize, Serialize)]
 struct Period {
     end: String,
@@ -78,7 +79,7 @@ const DELTA_DIAGNOSIS: f64 = 3.;
 const EPSILON: f64 = 0.1;
 
 
-pub(crate) fn obfuscate_counts(json_str: &str, obf_cache: &mut ObfCache) -> String {
+pub fn obfuscate_counts(json_str: &str, obf_cache: &mut ObfCache) -> String {
 
     let patient_dist = Laplace::new(0.0, DELTA_PATIENT/EPSILON).unwrap(); //TODO error handling
     let diagnosis_dist = Laplace::new(0.0, DELTA_DIAGNOSIS/EPSILON).unwrap();
