@@ -124,16 +124,16 @@ fn obfuscate_counts_recursive(val: &mut Value, dist: &Laplace, bin: Bin, obf_cac
                         let mut rng = thread_rng();
                         let sensitivity: usize = (dist.scale() * EPSILON).round() as usize;
                         
-                        let pertubation = match obf_cache.cache.get(&(sensitivity, count, bin)) {
-                            Some(pertubation_reference) => *pertubation_reference,
+                        let perturbation = match obf_cache.cache.get(&(sensitivity, count, bin)) {
+                            Some(perturbation_reference) => *perturbation_reference,
                             None => {
-                                let pertubation_value = dist.sample(&mut rng).round() as u64;
-                                obf_cache.cache.insert((sensitivity, count, bin), pertubation_value);
-                                pertubation_value
+                                let perturbation_value = dist.sample(&mut rng).round() as u64;
+                                obf_cache.cache.insert((sensitivity, count, bin), perturbation_value);
+                                perturbation_value
                             }
                         };
 
-                        *count_val = json!((count + pertubation + 5) / 10 * 10);
+                        *count_val = json!((count + perturbation + 5) / 10 * 10);
                         // Per data protection concept it must be rounded to the nearest multiple of 10
                         // "Counts of patients and samples undergo obfuscation on site before being sent to central infrastructure. This is done by incorporating some randomness into the count and then rounding it to the nearest multiple of ten."
                     } // And zero stays zero
