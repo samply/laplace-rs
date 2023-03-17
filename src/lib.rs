@@ -1,4 +1,4 @@
-mod errors;
+pub mod errors;
 
 use rand::distributions::Distribution;
 use rand::thread_rng;
