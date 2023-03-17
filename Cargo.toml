@@ -1,6 +1,6 @@
 [package]
 name = "laplace_rs"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
 
@@ -17,3 +17,4 @@ tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
 
 statrs = "0.16.0"
 rand = "0.8.5"
+anyhow = "1.0.69"

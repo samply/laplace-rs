@@ -1,3 +1,5 @@
+mod errors;
+
 use rand::distributions::Distribution;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
@@ -5,6 +7,9 @@ use serde_json::{json, Value};
 use statrs::distribution::Laplace;
 use std::collections::HashMap;
 use tracing::{debug, info, warn};
+use anyhow::Result;
+
+use crate::errors::LaplaceError;
 
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -79,13 +84,13 @@ const DELTA_DIAGNOSIS: f64 = 3.;
 const EPSILON: f64 = 0.1;
 
 
-pub fn obfuscate_counts(json_str: &str, obf_cache: &mut ObfCache) -> String {
+pub fn obfuscate_counts(json_str: &str, obf_cache: &mut ObfCache) -> Result<String, LaplaceError> {
 
-    let patient_dist = Laplace::new(0.0, DELTA_PATIENT/EPSILON).unwrap(); //TODO error handling
-    let diagnosis_dist = Laplace::new(0.0, DELTA_DIAGNOSIS/EPSILON).unwrap();
-    let specimen_dist = Laplace::new(0.0, DELTA_SPECIMEN/EPSILON).unwrap();
+    let patient_dist = Laplace::new(0.0, DELTA_PATIENT/EPSILON).map_err(|e| LaplaceError::DistributionCreationError(e.to_string()))?;
+    let diagnosis_dist = Laplace::new(0.0, DELTA_DIAGNOSIS/EPSILON).map_err(|e| LaplaceError::DistributionCreationError(e.to_string()))?;
+    let specimen_dist = Laplace::new(0.0, DELTA_SPECIMEN/EPSILON).map_err(|e| LaplaceError::DistributionCreationError(e.to_string()))?;
 
-    let mut measure_report: MeasureReport = serde_json::from_str(&json_str).unwrap();
+    let mut measure_report: MeasureReport = serde_json::from_str(&json_str).map_err(|e| LaplaceError::DeserializationError(e.to_string()))?;
     for g in &mut measure_report.group {
         match &g.code.text[..] {
             "patients" => {
@@ -111,7 +116,7 @@ pub fn obfuscate_counts(json_str: &str, obf_cache: &mut ObfCache) -> String {
 
     let measure_report_obfuscated = serde_json::to_string_pretty(&measure_report).unwrap(); //TODO error handling
     dbg!(measure_report_obfuscated.clone());
-    measure_report_obfuscated
+    Ok(measure_report_obfuscated)
 }
 
 fn obfuscate_counts_recursive(val: &mut Value, dist: &Laplace, bin: Bin, obf_cache: &mut ObfCache) {
@@ -581,7 +586,7 @@ mod test {
     #[test]
     fn test_obfuscate_counts() {
         let mut obf_cache = ObfCache { cache: HashMap::new() };
-        let obfuscated_json = obfuscate_counts(EXAMPLE_JSON, &mut obf_cache);
+        let obfuscated_json = obfuscate_counts(EXAMPLE_JSON, &mut obf_cache).unwrap();
 
         // Check that the obfuscated JSON can be parsed and has the same structure as the original JSON
         let _: MeasureReport = serde_json::from_str(&obfuscated_json).unwrap();
@@ -590,7 +595,7 @@ mod test {
         assert_ne!(obfuscated_json, EXAMPLE_JSON);
 
         // Check that obfuscating the same JSON twice with the same obfuscation cache gives the same result
-        let obfuscated_json_2 = obfuscate_counts(EXAMPLE_JSON, &mut obf_cache);
+        let obfuscated_json_2 = obfuscate_counts(EXAMPLE_JSON, &mut obf_cache).unwrap();
         assert_eq!(obfuscated_json, obfuscated_json_2);
     }
 
