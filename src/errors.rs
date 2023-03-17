@@ -6,8 +6,6 @@ pub enum LaplaceError {
     DistributionCreationError(String),
     #[error("Deserialization error")]
     DeserializationError(String),
-    #[error("Invalid BeamID")]
-    InvalidBeamId(String),
-    #[error("Parsing error")]
-    ParsingError(String),
+    #[error("Serialization error")]
+    SerializationError(String),
 }

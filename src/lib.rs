@@ -114,7 +114,7 @@ pub fn obfuscate_counts(json_str: &str, obf_cache: &mut ObfCache) -> Result<Stri
         }
     }
 
-    let measure_report_obfuscated = serde_json::to_string_pretty(&measure_report).unwrap(); //TODO error handling
+    let measure_report_obfuscated = serde_json::to_string_pretty(&measure_report).map_err(|e| LaplaceError::SerializationError(e.to_string()))?;
     dbg!(measure_report_obfuscated.clone());
     Ok(measure_report_obfuscated)
 }
