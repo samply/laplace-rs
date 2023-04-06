@@ -1,602 +1,305 @@
 pub mod errors;
 
+use anyhow::Result;
 use rand::distributions::Distribution;
-use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use statrs::distribution::Laplace;
 use std::collections::HashMap;
 use tracing::{debug, info, warn};
-use anyhow::Result;
 
 use crate::errors::LaplaceError;
 
 
-#[derive(Debug, Deserialize, Serialize)]
-struct Period {
-    end: String,
-    start: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct ValueQuantity {
-    code: String,
-    system: String,
-    unit: String,
-    value: f64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Extension {
-    url: String,
-    value_quantity: ValueQuantity,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Code {
-    text: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Coding {
-    code: String,
-    system: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Population {
-    code: Code,
-    count: u64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Group {
-    code: Code,
-    population: Value,
-    stratifier: Value,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct MeasureReport {
-    date: String,
-    extension: Vec<Extension>,
-    group: Vec<Group>,
-    measure: String,
-    period: Period,
-    resource_type: String,
-    status: String,
-    type_: String, //because "type" is a reserved keyword
-}
-
 // obfuscation cache
 type Sensitivity = usize;
 type Count = u64;
-type Bin = usize;
+pub type Bin = usize;
 pub struct ObfCache {
     pub cache: HashMap<(Sensitivity, Count, Bin), u64>,
 }
 
-const DELTA_PATIENT: f64 = 1.;
-const DELTA_SPECIMEN: f64 = 20.;
-const DELTA_DIAGNOSIS: f64 = 3.;
-const EPSILON: f64 = 0.1;
 
+/// Obfuscates the given value using a random sampled value from a Laplace distribution with
+/// given delta and epsilon parameters, and bin to which the value belongs. The
+/// obfuscate_zero flag indicates whether only positive values should be obfuscated or all
+/// values, including zero. The rounding_step determines the granularity of the rounding. If
+/// obf_cache_option is not None, the function checks the cache for a pre-computed value before
+/// obfuscating. If no cached value is found, it obfuscates the value and stores it in the cache.
+///
+/// # Arguments
+///
+/// * value - The input value to be obfuscated.
+/// * delta - Sensitivity.
+/// * epsilon - Privacy budget parameter.
+/// * bin - The bin that the value belongs to.
+/// * obf_cache_option - An option that represents the obfuscation cache.
+/// * obfuscate_zero - A flag indicating whether zero counts should be obfuscated.
+/// * rounding_step - The granularity of the rounding.
+/// * rng - A secure random generator for seeded randomness.
+///
+/// # Returns
+///
+/// The obfuscated value, rounded to the nearest multiple of the rounding_step, or an error if the
+/// obfuscation failed.
+pub fn get_from_cache_or_privatize(
+    value: u64,
+    delta: f64,
+    epsilon: f64,
+    bin: Bin,
+    obf_cache_option: Option<&mut ObfCache>,
+    obfuscate_zero: bool,
+    rounding_step: u64,
+    rng: &mut rand::rngs::ThreadRng,
+) -> Result<u64, LaplaceError> {
+    let obfuscated: u64 = match obf_cache_option {
+        None => privatize(value, delta, epsilon, obfuscate_zero, rounding_step, rng).unwrap(),
+        Some(obf_cache) => {
+            if !obfuscate_zero && value == 0 {
+                return Ok(0);
+            }
 
-pub fn obfuscate_counts(json_str: &str, obf_cache: &mut ObfCache) -> Result<String, LaplaceError> {
+            let sensitivity: usize = delta.round() as usize;
 
-    let patient_dist = Laplace::new(0.0, DELTA_PATIENT/EPSILON).map_err(|e| LaplaceError::DistributionCreationError(e.to_string()))?;
-    let diagnosis_dist = Laplace::new(0.0, DELTA_DIAGNOSIS/EPSILON).map_err(|e| LaplaceError::DistributionCreationError(e.to_string()))?;
-    let specimen_dist = Laplace::new(0.0, DELTA_SPECIMEN/EPSILON).map_err(|e| LaplaceError::DistributionCreationError(e.to_string()))?;
+            let obfuscated: u64 = match obf_cache.cache.get(&(sensitivity, value, bin)) {
+                Some(obfuscated_reference) => *obfuscated_reference,
+                None => {
+                    let obfuscated_value =
+                        privatize(value, delta, epsilon, true, rounding_step, rng).unwrap();
 
-    let mut measure_report: MeasureReport = serde_json::from_str(&json_str).map_err(|e| LaplaceError::DeserializationError(e.to_string()))?;
-    for g in &mut measure_report.group {
-        match &g.code.text[..] {
-            "patients" => {
-                info!("patients");
-                obfuscate_counts_recursive(&mut g.population, &patient_dist, 1, obf_cache);
-                obfuscate_counts_recursive(&mut g.stratifier, &patient_dist, 2, obf_cache);
-            }
-            "diagnosis" => {
-                info!("diagnosis");
-                obfuscate_counts_recursive(&mut g.population, &diagnosis_dist, 1, obf_cache);
-                obfuscate_counts_recursive(&mut g.stratifier, &diagnosis_dist, 2, obf_cache);
-            }
-            "specimen" => {
-                info!("specimen");
-                obfuscate_counts_recursive(&mut g.population, &specimen_dist, 1, obf_cache);
-                obfuscate_counts_recursive(&mut g.stratifier, &specimen_dist, 2, obf_cache);
-            }
-            _ => {
-                warn!("focus is not aware of this type of stratifier")
-            }
+                    obf_cache
+                        .cache
+                        .insert((sensitivity, value, bin), obfuscated_value);
+                    obfuscated_value
+                }
+            };
+            obfuscated
         }
-    }
-
-    let measure_report_obfuscated = serde_json::to_string_pretty(&measure_report).map_err(|e| LaplaceError::SerializationError(e.to_string()))?;
-    //dbg!(measure_report_obfuscated.clone());
-    Ok(measure_report_obfuscated)
+    };
+    Ok(obfuscated)
 }
 
-fn obfuscate_counts_recursive(val: &mut Value, dist: &Laplace, bin: Bin, obf_cache: &mut ObfCache) {
-    match val {
-        Value::Object(map) => {
-            if let Some(count_val) = map.get_mut("count") {
-                if let Some(count) = count_val.as_u64() {
-                    if count >= 1 && count <= 10 {
-                        *count_val = json!(10);
-                    } else if count > 10 {
-                        let mut rng = thread_rng();
-                        let sensitivity: usize = (dist.scale() * EPSILON).round() as usize;
-                        
-                        let perturbation = match obf_cache.cache.get(&(sensitivity, count, bin)) {
-                            Some(perturbation_reference) => *perturbation_reference,
-                            None => {
-                                let perturbation_value = dist.sample(&mut rng).round() as u64;
-                                obf_cache.cache.insert((sensitivity, count, bin), perturbation_value);
-                                perturbation_value
-                            }
-                        };
-
-                        *count_val = json!((count + perturbation + 5) / 10 * 10);
-                        // Per data protection concept it must be rounded to the nearest multiple of 10
-                        // "Counts of patients and samples undergo obfuscation on site before being sent to central infrastructure. This is done by incorporating some randomness into the count and then rounding it to the nearest multiple of ten."
-                    } // And zero stays zero
-                }
-            }
-            for (_, sub_val) in map.iter_mut() {
-                obfuscate_counts_recursive(sub_val, dist, bin, obf_cache);
-            }
-        }
-        Value::Array(vec) => {
-            for sub_val in vec.iter_mut() {
-                obfuscate_counts_recursive(sub_val, dist, bin, obf_cache);
-            }
-        }
-        _ => {}
+/// Performs the actual perturbation of a value with the (epsilon, 0) laplacian
+/// mechanism and rounds the result to the nearest step position.
+///
+/// # Arguments
+///
+/// * `value` - Clear value to permute.
+/// * `sensitivity` - Sensitivity of query.
+/// * `epsilon` - Privacy budget parameter.
+/// * `obfuscate_zero` - If `false`, only values greater than zero will be obfuscated. If `true`, all values including zero will be obfuscated.
+/// * `rounding_step` - Rounding to the given number is performed.
+/// * rng - A secure random generator for seeded randomness.
+///
+/// # Returns
+///
+/// The obfuscated value , or an error if the obfuscation failed.
+pub fn privatize(
+    value: u64,
+    sensitivity: f64,
+    epsilon: f64,
+    obfuscate_zero: bool,
+    rounding_step: u64,
+    rng: &mut rand::rngs::ThreadRng,
+) -> Result<u64, LaplaceError> {
+    if value > 0 || obfuscate_zero {
+        let obfuscated_value = value as f64 + laplace(0.0, sensitivity / epsilon, rng).unwrap();
+        round_parametric(obfuscated_value, rounding_step)
+    } else {
+        Ok(0)
     }
+}
+
+/// Rounds the value to the nearest multiple of the step parameter.
+///
+/// # Arguments
+///
+/// * `value` - The value to be rounded.
+/// * `stepParameter` - The step to round to, for example, 1, 5, or 10.
+///
+/// # Returns
+///
+/// Returns the rounded value, or an error if the rounding failed.
+
+fn round_parametric(value: f64, step_parameter: u64) -> Result<u64, LaplaceError> {
+    if step_parameter == 0 {
+        return Err(LaplaceError::DistributionCreationError(
+            "Rounding step zero not allowed".to_string(),
+        ));
+    }
+    Ok((value / step_parameter as f64).round() as u64 * step_parameter)
+}
+
+/// Draw a sample from a Laplace distribution.
+///
+/// # Arguments
+///
+/// * `mu` - the mean of the distribution.
+/// * `b` - the scale parameter of the distribution, often equal to `sensitivity`/`epsilon`.
+/// /// * `rng` - random generator.
+///
+/// # Returns
+///
+/// Returns a random sample from the Laplace distribution with the given `mu` and `b`, or an error if the distribution creation failed.
+
+fn laplace(mu: f64, b: f64, rng: &mut rand::rngs::ThreadRng) -> Result<f64, LaplaceError> {
+    let dist =
+        Laplace::new(mu, b).map_err(|e| LaplaceError::DistributionCreationError(e.to_string()))?;
+    Ok(dist.sample(rng))
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
 
-    const EXAMPLE_JSON: &str = r#"
-    {
-        "date": "2023-03-03T15:54:21.740195064Z",
-        "extension": [
-            {
-                "url": "https://samply.github.io/blaze/fhir/StructureDefinition/eval-duration",
-                "valueQuantity": {
-                    "code": "s",
-                    "system": "http://unitsofmeasure.org",
-                    "unit": "s",
-                    "value": 0.050495759
-                }
-            }
-        ],
-        "group": [
-            {
-                "code": {
-                    "text": "patients"
-                },
-                "population": [
-                    {
-                        "code": {
-                            "coding": [
-                                {
-                                    "code": "initial-population",
-                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                }
-                            ]
-                        },
-                        "count": 74
-                    }
-                ],
-                "stratifier": [
-                    {
-                        "code": [
-                            {
-                                "text": "Gender"
-                            }
-                        ],
-                        "stratum": [
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 31
-                                    }
-                                ],
-                                "value": {
-                                    "text": "female"
-                                }
-                            },
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 43
-                                    }
-                                ],
-                                "value": {
-                                    "text": "male"
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        "code": [
-                            {
-                                "text": "Age"
-                            }
-                        ],
-                        "stratum": [
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 5
-                                    }
-                                ],
-                                "value": {
-                                    "text": "40"
-                                }
-                            },
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 4
-                                    }
-                                ],
-                                "value": {
-                                    "text": "50"
-                                }
-                            },
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 14
-                                    }
-                                ],
-                                "value": {
-                                    "text": "60"
-                                }
-                            },
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 4
-                                    }
-                                ],
-                                "value": {
-                                    "text": "80"
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        "code": [
-                            {
-                                "text": "Custodian"
-                            }
-                        ],
-                        "stratum": [
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 31
-                                    }
-                                ],
-                                "value": {
-                                    "text": "bbmri-eric:ID:CZ_CUNI_PILS:collection:serum_plasma"
-                                }
-                            },
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 43
-                                    }
-                                ],
-                                "value": {
-                                    "text": "null"
-                                }
-                            }
-                        ]
-                    }
-                ]
-            },
-            {
-                "code": {
-                    "text": "diagnosis"
-                },
-                "population": [
-                    {
-                        "code": {
-                            "coding": [
-                                {
-                                    "code": "initial-population",
-                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                }
-                            ]
-                        },
-                        "count": 324
-                    }
-                ],
-                "stratifier": [
-                    {
-                        "code": [
-                            {
-                                "text": "diagnosis"
-                            }
-                        ],
-                        "stratum": [
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 26
-                                    }
-                                ],
-                                "value": {
-                                    "text": "C34.0"
-                                }
-                            },
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 28
-                                    }
-                                ],
-                                "value": {
-                                    "text": "C34.2"
-                                }
-                            },
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 25
-                                    }
-                                ],
-                                "value": {
-                                    "text": "C34.8"
-                                }
-                            },
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 27
-                                    }
-                                ],
-                                "value": {
-                                    "text": "C78.0"
-                                }
-                            },
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 25
-                                    }
-                                ],
-                                "value": {
-                                    "text": "D38.6"
-                                }
-                            },
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 25
-                                    }
-                                ],
-                                "value": {
-                                    "text": "R91"
-                                }
-                            }
-                        ]
-                    }
-                ]
-            },
-            {
-                "code": {
-                    "text": "specimen"
-                },
-                "population": [
-                    {
-                        "code": {
-                            "coding": [
-                                {
-                                    "code": "initial-population",
-                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                }
-                            ]
-                        },
-                        "count": 124
-                    }
-                ],
-                "stratifier": [
-                    {
-                        "code": [
-                            {
-                                "text": "sample_kind"
-                            }
-                        ],
-                        "stratum": [
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 62
-                                    }
-                                ],
-                                "value": {
-                                    "text": "blood-plasma"
-                                }
-                            },
-                            {
-                                "population": [
-                                    {
-                                        "code": {
-                                            "coding": [
-                                                {
-                                                    "code": "initial-population",
-                                                    "system": "http://terminology.hl7.org/CodeSystem/measure-population"
-                                                }
-                                            ]
-                                        },
-                                        "count": 62
-                                    }
-                                ],
-                                "value": {
-                                    "text": "blood-serum"
-                                }
-                            }
-                        ]
-                    }
-                ]
-            }
-        ],
-        "measure": "urn:uuid:fe7e5bf7-d792-4368-b1d2-5798930db13e",
-        "period": {
-            "end": "2030",
-            "start": "2000"
-        },
-        "resourceType": "MeasureReport",
-        "status": "complete",
-        "type": "summary"
+    #[test]
+    fn test_laplace_err() {
+        let mu = 10.0;
+        let b = 0.0;
+        let mut rng = rand::thread_rng();
+        let result = laplace(mu, b, &mut rng);
+        assert!(result.is_err());
     }
-    "#;
-
 
     #[test]
-    fn test_obfuscate_counts() {
-        let mut obf_cache = ObfCache { cache: HashMap::new() };
-        let obfuscated_json = obfuscate_counts(EXAMPLE_JSON, &mut obf_cache).unwrap();
-
-        // Check that the obfuscated JSON can be parsed and has the same structure as the original JSON
-        let _: MeasureReport = serde_json::from_str(&obfuscated_json).unwrap();
-
-        // Check that the obfuscated JSON is different from the original JSON
-        assert_ne!(obfuscated_json, EXAMPLE_JSON);
-
-        // Check that obfuscating the same JSON twice with the same obfuscation cache gives the same result
-        let obfuscated_json_2 = obfuscate_counts(EXAMPLE_JSON, &mut obf_cache).unwrap();
-        assert_eq!(obfuscated_json, obfuscated_json_2);
+    fn test_laplace_ok() {
+        let mu = 10.0;
+        let b = 1.0;
+        let mut rng = rand::thread_rng();
+        let result = laplace(mu, b, &mut rng);
+        assert!(result.is_ok());
     }
 
+    #[test]
+    fn test_laplace_output_within_range() {
+        let mu = 10.0;
+        let b = 1.0;
+        let mut rng = rand::thread_rng();
+        let result = laplace(mu, b, &mut rng).unwrap();
+        assert!(result >= mu - 10.0 * b && result <= mu + 10.0 * b);
+    }
+
+    #[test]
+    fn test_round_parametric() {
+        assert_eq!(round_parametric(3.2, 1).unwrap(), 3);
+        assert_eq!(round_parametric(3.7, 1).unwrap(), 4);
+        assert_eq!(round_parametric(12.8, 5).unwrap(), 15);
+        assert_eq!(round_parametric(17.4, 5).unwrap(), 15);
+        assert_eq!(round_parametric(38.2, 10).unwrap(), 40);
+        assert_eq!(round_parametric(44.9, 10).unwrap(), 40);
+    }
+
+    #[test]
+    fn test_round_parametric_zero() {
+        assert_eq!(round_parametric(0.0, 1).unwrap(), 0);
+        assert_eq!(round_parametric(0.0, 5).unwrap(), 0);
+        assert_eq!(round_parametric(0.0, 10).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_round_parametric_large() {
+        assert_eq!(round_parametric(1_000_000.0, 1).unwrap(), 1_000_000);
+        assert_eq!(round_parametric(1_000_000.0, 5).unwrap(), 1_000_000);
+        assert_eq!(round_parametric(1_000_000.0, 10).unwrap(), 1_000_000);
+    }
+
+    #[test]
+    fn test_round_parametric_invalid_step() {
+        let result = round_parametric(10.0, 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_privatize_ok() {
+        let mut rng = rand::thread_rng();
+        let value = 27;
+        let sensitivity = 10.0;
+        let epsilon = 0.5;
+        let obfuscate_zero = false;
+        let rounding_step = 10;
+        let result = privatize(
+            value,
+            sensitivity,
+            epsilon,
+            obfuscate_zero,
+            rounding_step,
+            &mut rng,
+        )
+        .unwrap();
+        assert_ne!(result, value);
+    }
+
+    #[test]
+    fn test_privatize_zero_no_obfuscate() {
+        let mut rng = rand::thread_rng();
+        let value = 0;
+        let sensitivity = 10.0;
+        let epsilon = 0.5;
+        let obfuscate_zero = false;
+        let rounding_step = 10;
+        let result = privatize(
+            value,
+            sensitivity,
+            epsilon,
+            obfuscate_zero,
+            rounding_step,
+            &mut rng,
+        )
+        .unwrap();
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn test_obfuscate_zero_false_and_value_zero() {
+        let mut rng = rand::thread_rng();
+        let result = get_from_cache_or_privatize(0, 1.0, 1.0, 1, None, false, 1, &mut rng);
+
+        assert_eq!(result.unwrap(), 0);
+    }
+
+    #[test]
+    fn test_obfuscate_zero_false_and_value_non_zero() {
+        let mut rng = rand::thread_rng();
+        let result = get_from_cache_or_privatize(10, 1.0, 1.0, 1, None, false, 1, &mut rng);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_obfuscate_zero_true_and_value_zero() {
+        let mut rng = rand::thread_rng();
+        let result = get_from_cache_or_privatize(0, 1.0, 1.0, 1, None, true, 1, &mut rng);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_obfuscate_zero_true_and_value_non_zero() {
+        let mut rng = rand::thread_rng();
+        let result = get_from_cache_or_privatize(10, 1.0, 1.0, 1, None, true, 1, &mut rng);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_with_obf_cache() {
+        let mut rng = rand::thread_rng();
+        let mut obf_cache: ObfCache = ObfCache {
+            cache: HashMap::new(),
+        };
+
+        let result =
+            get_from_cache_or_privatize(10, 1.0, 1.0, 1, Some(&mut obf_cache), true, 1, &mut rng);
+        assert!(result.is_ok());
+
+        let obfuscated_value = obf_cache.cache.get(&(1, 10, 1));
+        assert!(obfuscated_value.is_some());
+        let result_ok = result.unwrap();
+        assert_eq!(result_ok.clone(), *obfuscated_value.unwrap());
+
+        let result2 =
+            get_from_cache_or_privatize(10, 1.0, 1.0, 1, Some(&mut obf_cache), true, 1, &mut rng);
+        assert!(result2.is_ok());
+        assert_eq!(result_ok, result2.unwrap());
+    }
 }

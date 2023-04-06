@@ -8,4 +8,6 @@ pub enum LaplaceError {
     DeserializationError(String),
     #[error("Serialization error")]
     SerializationError(String),
+    #[error("Rounding step error")]
+    RoundingStepError(String),
 }
