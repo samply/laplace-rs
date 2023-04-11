@@ -46,7 +46,7 @@ pub fn get_from_cache_or_privatize(
     bin: Bin,
     obf_cache_option: Option<&mut ObfCache>,
     obfuscate_zero: bool,
-    rounding_step: u64,
+    rounding_step: usize,
     rng: &mut rand::rngs::ThreadRng,
 ) -> Result<u64, LaplaceError> {
     let obfuscated: u64 = match obf_cache_option {
@@ -96,7 +96,7 @@ pub fn privatize(
     sensitivity: f64,
     epsilon: f64,
     obfuscate_zero: bool,
-    rounding_step: u64,
+    rounding_step: usize,
     rng: &mut rand::rngs::ThreadRng,
 ) -> Result<u64, LaplaceError> {
     if value > 0 || obfuscate_zero {
@@ -118,13 +118,13 @@ pub fn privatize(
 ///
 /// Returns the rounded value, or an error if the rounding failed.
 
-fn round_parametric(value: f64, step_parameter: u64) -> Result<u64, LaplaceError> {
+fn round_parametric(value: f64, step_parameter: usize) -> Result<u64, LaplaceError> {
     if step_parameter == 0 {
         return Err(LaplaceError::DistributionCreationError(
             "Rounding step zero not allowed".to_string(),
         ));
     }
-    Ok((value / step_parameter as f64).round() as u64 * step_parameter)
+    Ok((value / step_parameter as f64).round() as u64 * step_parameter as u64)
 }
 
 /// Draw a sample from a Laplace distribution.
