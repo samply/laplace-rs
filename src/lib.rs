@@ -7,7 +7,6 @@ use std::collections::HashMap;
 
 use crate::errors::LaplaceError;
 
-
 // obfuscation cache
 type Sensitivity = usize;
 type Count = u64;
@@ -16,6 +15,12 @@ pub struct ObfCache {
     pub cache: HashMap<(Sensitivity, Count, Bin), u64>,
 }
 
+#[derive(PartialEq, Eq)]
+pub enum ObfuscateBelow10Mode {
+    Zero,
+    Ten,
+    Obfuscate,
+}
 
 /// Obfuscates the given value using a random sampled value from a Laplace distribution with
 /// given delta and epsilon parameters, and bin to which the value belongs. The
@@ -32,6 +37,7 @@ pub struct ObfCache {
 /// * bin - The bin that the value belongs to.
 /// * obf_cache_option - An option that represents the obfuscation cache.
 /// * obfuscate_zero - A flag indicating whether zero counts should be obfuscated.
+/// * below_10_obfuscation_mode: 0 - return 0, 1 - return 10, 2 - obfuscate using Laplace distribution and rounding
 /// * rounding_step - The granularity of the rounding.
 /// * rng - A secure random generator for seeded randomness.
 ///
@@ -46,14 +52,24 @@ pub fn get_from_cache_or_privatize(
     bin: Bin,
     obf_cache_option: Option<&mut ObfCache>,
     obfuscate_zero: bool,
+    obfuscate_below_10_mode: ObfuscateBelow10Mode,
     rounding_step: usize,
     rng: &mut rand::rngs::ThreadRng,
 ) -> Result<u64, LaplaceError> {
     let obfuscated: u64 = match obf_cache_option {
-        None => privatize(value, delta, epsilon, obfuscate_zero, rounding_step, rng).unwrap(),
+        None => privatize(value, delta, epsilon, rounding_step, rng).unwrap(),
         Some(obf_cache) => {
             if !obfuscate_zero && value == 0 {
                 return Ok(0);
+            }
+
+            if value < 10 {
+                if obfuscate_below_10_mode == ObfuscateBelow10Mode::Zero {
+                    return Ok(0);
+                }
+                if obfuscate_below_10_mode == ObfuscateBelow10Mode::Ten {
+                    return Ok(10);
+                }
             }
 
             let sensitivity: usize = delta.round() as usize;
@@ -62,7 +78,7 @@ pub fn get_from_cache_or_privatize(
                 Some(obfuscated_reference) => *obfuscated_reference,
                 None => {
                     let obfuscated_value =
-                        privatize(value, delta, epsilon, true, rounding_step, rng).unwrap();
+                        privatize(value, delta, epsilon, rounding_step, rng).unwrap();
 
                     obf_cache
                         .cache
@@ -84,7 +100,6 @@ pub fn get_from_cache_or_privatize(
 /// * `value` - Clear value to permute.
 /// * `sensitivity` - Sensitivity of query.
 /// * `epsilon` - Privacy budget parameter.
-/// * `obfuscate_zero` - If `false`, only values greater than zero will be obfuscated. If `true`, all values including zero will be obfuscated.
 /// * `rounding_step` - Rounding to the given number is performed.
 /// * rng - A secure random generator for seeded randomness.
 ///
@@ -95,16 +110,11 @@ pub fn privatize(
     value: u64,
     sensitivity: f64,
     epsilon: f64,
-    obfuscate_zero: bool,
     rounding_step: usize,
     rng: &mut rand::rngs::ThreadRng,
 ) -> Result<u64, LaplaceError> {
-    if value > 0 || obfuscate_zero {
-        let obfuscated_value = value as f64 + laplace(0.0, sensitivity / epsilon, rng).unwrap();
-        round_parametric(obfuscated_value, rounding_step)
-    } else {
-        Ok(0)
-    }
+    let obfuscated_value = value as f64 + laplace(0.0, sensitivity / epsilon, rng).unwrap();
+    round_parametric(obfuscated_value, rounding_step)
 }
 
 /// Rounds the value to the nearest multiple of the step parameter.
@@ -212,13 +222,11 @@ mod test {
         let value = 27;
         let sensitivity = 10.0;
         let epsilon = 0.5;
-        let obfuscate_zero = false;
         let rounding_step = 10;
         let result = privatize(
             value,
             sensitivity,
             epsilon,
-            obfuscate_zero,
             rounding_step,
             &mut rng,
         )
@@ -232,13 +240,11 @@ mod test {
         let value = 0;
         let sensitivity = 10.0;
         let epsilon = 0.5;
-        let obfuscate_zero = false;
         let rounding_step = 10;
         let result = privatize(
             value,
             sensitivity,
             epsilon,
-            obfuscate_zero,
             rounding_step,
             &mut rng,
         )
@@ -249,7 +255,7 @@ mod test {
     #[test]
     fn test_obfuscate_zero_false_and_value_zero() {
         let mut rng = rand::thread_rng();
-        let result = get_from_cache_or_privatize(0, 1.0, 1.0, 1, None, false, 1, &mut rng);
+        let result = get_from_cache_or_privatize(0, 1.0, 1.0, 1, None, false, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
 
         assert_eq!(result.unwrap(), 0);
     }
@@ -257,7 +263,7 @@ mod test {
     #[test]
     fn test_obfuscate_zero_false_and_value_non_zero() {
         let mut rng = rand::thread_rng();
-        let result = get_from_cache_or_privatize(10, 1.0, 1.0, 1, None, false, 1, &mut rng);
+        let result = get_from_cache_or_privatize(10, 1.0, 1.0, 1, None, false, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
 
         assert!(result.is_ok());
     }
@@ -265,7 +271,7 @@ mod test {
     #[test]
     fn test_obfuscate_zero_true_and_value_zero() {
         let mut rng = rand::thread_rng();
-        let result = get_from_cache_or_privatize(0, 1.0, 1.0, 1, None, true, 1, &mut rng);
+        let result = get_from_cache_or_privatize(0, 1.0, 1.0, 1, None, true, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
 
         assert!(result.is_ok());
     }
@@ -273,7 +279,7 @@ mod test {
     #[test]
     fn test_obfuscate_zero_true_and_value_non_zero() {
         let mut rng = rand::thread_rng();
-        let result = get_from_cache_or_privatize(10, 1.0, 1.0, 1, None, true, 1, &mut rng);
+        let result = get_from_cache_or_privatize(10, 1.0, 1.0, 1, None, true, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
 
         assert!(result.is_ok());
     }
@@ -286,7 +292,7 @@ mod test {
         };
 
         let result =
-            get_from_cache_or_privatize(10, 1.0, 1.0, 1, Some(&mut obf_cache), true, 1, &mut rng);
+            get_from_cache_or_privatize(10, 1.0, 1.0, 1, Some(&mut obf_cache), true, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
         assert!(result.is_ok());
 
         let obfuscated_value = obf_cache.cache.get(&(1, 10, 1));
@@ -295,7 +301,7 @@ mod test {
         assert_eq!(result_ok.clone(), *obfuscated_value.unwrap());
 
         let result2 =
-            get_from_cache_or_privatize(10, 1.0, 1.0, 1, Some(&mut obf_cache), true, 1, &mut rng);
+            get_from_cache_or_privatize(10, 1.0, 1.0, 1, Some(&mut obf_cache), true, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
         assert!(result2.is_ok());
         assert_eq!(result_ok, result2.unwrap());
     }
