@@ -127,12 +127,9 @@ pub fn privatize(
 /// # Returns
 ///
 /// Returns the rounded value, or an error if the rounding failed.
-
 fn round_parametric(value: f64, step_parameter: usize) -> Result<u64, LaplaceError> {
     if step_parameter == 0 {
-        return Err(LaplaceError::DistributionCreationError(
-            "Rounding step zero not allowed".to_string(),
-        ));
+        return Err(LaplaceError::InvalidArgRoundingStepZero);
     }
     Ok((value / step_parameter as f64).round() as u64 * step_parameter as u64)
 }
@@ -148,7 +145,6 @@ fn round_parametric(value: f64, step_parameter: usize) -> Result<u64, LaplaceErr
 /// # Returns
 ///
 /// Returns a random sample from the Laplace distribution with the given `mu` and `b`, or an error if the distribution creation failed.
-
 fn laplace(mu: f64, b: f64, rng: &mut rand::rngs::ThreadRng) -> Result<f64, LaplaceError> {
     let dist =
         Laplace::new(mu, b).map_err(|e| LaplaceError::DistributionCreationError(e.to_string()))?;
