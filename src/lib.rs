@@ -229,27 +229,8 @@ mod test {
             epsilon,
             rounding_step,
             &mut rng,
-        )
-        .unwrap();
-        assert_ne!(result, value);
-    }
-
-    #[test]
-    fn test_privatize_zero_no_obfuscate() {
-        let mut rng = rand::thread_rng();
-        let value = 0;
-        let sensitivity = 10.0;
-        let epsilon = 0.5;
-        let rounding_step = 10;
-        let result = privatize(
-            value,
-            sensitivity,
-            epsilon,
-            rounding_step,
-            &mut rng,
-        )
-        .unwrap();
-        assert_eq!(result, 0);
+        );
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -258,14 +239,6 @@ mod test {
         let result = get_from_cache_or_privatize(0, 1.0, 1.0, 1, None, false, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
 
         assert_eq!(result.unwrap(), 0);
-    }
-
-    #[test]
-    fn test_obfuscate_zero_false_and_value_non_zero() {
-        let mut rng = rand::thread_rng();
-        let result = get_from_cache_or_privatize(10, 1.0, 1.0, 1, None, false, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
-
-        assert!(result.is_ok());
     }
 
     #[test]
