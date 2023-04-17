@@ -147,7 +147,7 @@ fn round_parametric(value: f64, step_parameter: usize) -> Result<u64, LaplaceErr
 /// Returns a random sample from the Laplace distribution with the given `mu` and `b`, or an error if the distribution creation failed.
 fn laplace(mu: f64, b: f64, rng: &mut rand::rngs::ThreadRng) -> Result<f64, LaplaceError> {
     let dist =
-        Laplace::new(mu, b).map_err(|e| LaplaceError::DistributionCreationError(e.to_string()))?;
+        Laplace::new(mu, b).map_err(|e| LaplaceError::DistributionCreationError(e))?;
     Ok(dist.sample(rng))
 }
 
