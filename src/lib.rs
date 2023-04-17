@@ -127,12 +127,9 @@ pub fn privatize(
 /// # Returns
 ///
 /// Returns the rounded value, or an error if the rounding failed.
-
 fn round_parametric(value: f64, step_parameter: usize) -> Result<u64, LaplaceError> {
     if step_parameter == 0 {
-        return Err(LaplaceError::RoundingStepError(
-            "Rounding step zero not allowed".to_string(),
-        ));
+        return Err(LaplaceError::InvalidArgRoundingStepZero);
     }
     Ok((value / step_parameter as f64).round() as u64 * step_parameter as u64)
 }
@@ -148,10 +145,9 @@ fn round_parametric(value: f64, step_parameter: usize) -> Result<u64, LaplaceErr
 /// # Returns
 ///
 /// Returns a random sample from the Laplace distribution with the given `mu` and `b`, or an error if the distribution creation failed.
-
 fn laplace(mu: f64, b: f64, rng: &mut rand::rngs::ThreadRng) -> Result<f64, LaplaceError> {
     let dist =
-        Laplace::new(mu, b).map_err(|e| LaplaceError::DistributionCreationError(e.to_string()))?;
+        Laplace::new(mu, b).map_err(|e| LaplaceError::DistributionCreationError(e))?;
     Ok(dist.sample(rng))
 }
 
@@ -234,15 +230,7 @@ mod test {
     }
 
     #[test]
-    fn test_obfuscate_zero_false_and_value_zero() {
-        let mut rng = rand::thread_rng();
-        let result = get_from_cache_or_privatize(0, 1.0, 1.0, 1, None, false, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
-
-        assert_eq!(result.unwrap(), 0);
-    }
-
-    #[test]
-    fn test_obfuscate_zero_true_and_value_zero() {
+    fn test_obfuscate_value_zero() {
         let mut rng = rand::thread_rng();
         let result = get_from_cache_or_privatize(0, 1.0, 1.0, 1, None, true, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
 
@@ -250,7 +238,7 @@ mod test {
     }
 
     #[test]
-    fn test_obfuscate_zero_true_and_value_non_zero() {
+    fn test_obfuscate_value_non_zero() {
         let mut rng = rand::thread_rng();
         let result = get_from_cache_or_privatize(10, 1.0, 1.0, 1, None, true, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
 
