@@ -130,7 +130,7 @@ pub fn privatize(
 
 fn round_parametric(value: f64, step_parameter: usize) -> Result<u64, LaplaceError> {
     if step_parameter == 0 {
-        return Err(LaplaceError::DistributionCreationError(
+        return Err(LaplaceError::RoundingStepError(
             "Rounding step zero not allowed".to_string(),
         ));
     }
