@@ -40,7 +40,7 @@ const ROUNDING_STEP: usize = 10;
 fn obfuscate -> Result<u64, LaplaceError> {
 
 	let mut obf_cache: ObfCache = ObfCache { cache: HashMap::new() };
-    let mut rng = thread_rng();
+        let mut rng = thread_rng();
 	
 	let value = 15;
 	let obfuscated = get_from_cache_or_privatize(
