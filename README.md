@@ -44,24 +44,21 @@ fn obfuscate -> Result<u64, LaplaceError> {
 	
 	let value = 15;
 	let obfuscated = get_from_cache_or_privatize(
-	value, // The input value to be obfuscated.
-	DELTA, // Sensitivity.
-	EPSILON, // Privacy budget parameter.
-	1, // The bin that the value belongs to.
-	Some(&mut obf_cache), // An option that represents the obfuscation cache.
-	false, // A flag indicating whether zero counts should be obfuscated.
-	ObfuscateBelow10Mode::Ten, // 0 - return 0, 1 - return 10, 2 - obfuscate using Laplace distribution and rounding
-	ROUNDING_STEP, // The granularity of the rounding.
-	&mut rng, // A secure random generator for seeded randomness.
+	    value, // The input value to be obfuscated.
+	    DELTA, // Sensitivity.
+	    EPSILON, // Privacy budget parameter.
+	    1, // The bin that the value belongs to.
+	    Some(&mut obf_cache), // An option that represents the obfuscation cache.
+	    false, // A flag indicating whether zero counts should be obfuscated.
+	    ObfuscateBelow10Mode::Ten, // 0 - return 0, 1 - return 10, 2 - obfuscate using Laplace distribution and rounding
+	    ROUNDING_STEP, // The granularity of the rounding.
+	    &mut rng, // A secure random generator for seeded randomness.
 	)?;
 	
 	Ok(obfuscated)
 
 }
-
 ```
-
-
 
 ## License
 
