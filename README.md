@@ -2,15 +2,16 @@
 
 Samply.Laplace is a Rust library to obfuscate discrete values using differential privacy-inspired methods.
 The values are obfuscated by perturbing them with random values sampled from a laplace distribution with configurable parameters for location, sensitivity, and privacy budget. In order to not leak more information for repeated identical or equivalent queries, the perturbation values can be cached. The library exposes an API to finely control the caching behaviour, e.g. to obfuscate data that is stratified in a number of ways. Furthermore, a rounding step can be configured to never leak individual-level data.  
+
 Optionally, true zero values can be returned unperturbed. While lowering the privacy level slightly, this can vastly improve subsequent processes for data access control.
 
 ## Dependencies
 
 The dependencies Samply.Laplace Rust library requires are:
-thiserror v1.0.38
-statrs v0.16.0
-rand v0.8.5
-anyhow v1.0.69
+- thiserror v1.0.38
+- statrs v0.16.0
+- rand v0.8.5
+- anyhow v1.0.69
 
 ## Getting Started
 
