@@ -15,7 +15,7 @@ pub struct ObfCache {
     pub cache: HashMap<(Sensitivity, Count, Bin), u64>,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum ObfuscateBelow10Mode {
     Zero,
     Ten,
