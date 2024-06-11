@@ -1,6 +1,6 @@
 [package]
 name = "laplace_rs"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "Apache-2.0"
 
@@ -8,6 +8,8 @@ license = "Apache-2.0"
 
 [dependencies]
 thiserror = "1.0.38"
-statrs = "0.16.0"
+
+
+statrs = "0.17.1"
 rand = "0.8.5"
 anyhow = "1.0.69"
