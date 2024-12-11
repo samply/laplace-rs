@@ -1,4 +1,4 @@
-use statrs::StatsError;
+use statrs::distribution::LaplaceError as StatsError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
