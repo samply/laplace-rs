@@ -9,7 +9,7 @@ Optionally, true zero values can be returned unperturbed. While lowering the pri
 
 The dependencies Samply.Laplace Rust library requires are:
 - thiserror v2.0.3
-- statrs v0.16.0
+- statrs v0.18.0
 - rand v0.8.5
 - anyhow v1.0.69
 
