@@ -3,7 +3,7 @@ pub mod errors;
 use anyhow::Result;
 use rand::distributions::Distribution;
 use statrs::distribution::Laplace;
-use std::collections::HashMap;
+use std::{collections::HashMap, u8};
 
 use crate::errors::LaplaceError;
 
@@ -146,8 +146,7 @@ fn round_parametric(value: f64, step_parameter: usize) -> Result<u64, LaplaceErr
 ///
 /// Returns a random sample from the Laplace distribution with the given `mu` and `b`, or an error if the distribution creation failed.
 fn laplace(mu: f64, b: f64, rng: &mut rand::rngs::ThreadRng) -> Result<f64, LaplaceError> {
-    let dist =
-        Laplace::new(mu, b).map_err(|e| LaplaceError::DistributionCreationError(e))?;
+    let dist = Laplace::new(mu, b).map_err(|e| LaplaceError::DistributionCreationError(e))?;
     Ok(dist.sample(rng))
 }
 
@@ -219,20 +218,24 @@ mod test {
         let sensitivity = 10.0;
         let epsilon = 0.5;
         let rounding_step = 10;
-        let result = privatize(
-            value,
-            sensitivity,
-            epsilon,
-            rounding_step,
-            &mut rng,
-        );
+        let result = privatize(value, sensitivity, epsilon, rounding_step, &mut rng);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_obfuscate_value_zero() {
         let mut rng = rand::thread_rng();
-        let result = get_from_cache_or_privatize(0, 1.0, 1.0, 1, None, true, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
+        let result = get_from_cache_or_privatize(
+            0,
+            1.0,
+            1.0,
+            1,
+            None,
+            true,
+            ObfuscateBelow10Mode::Obfuscate,
+            1,
+            &mut rng,
+        );
 
         assert!(result.is_ok());
     }
@@ -240,7 +243,17 @@ mod test {
     #[test]
     fn test_obfuscate_value_non_zero() {
         let mut rng = rand::thread_rng();
-        let result = get_from_cache_or_privatize(10, 1.0, 1.0, 1, None, true, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
+        let result = get_from_cache_or_privatize(
+            10,
+            1.0,
+            1.0,
+            1,
+            None,
+            true,
+            ObfuscateBelow10Mode::Obfuscate,
+            1,
+            &mut rng,
+        );
 
         assert!(result.is_ok());
     }
@@ -252,8 +265,17 @@ mod test {
             cache: HashMap::new(),
         };
 
-        let result =
-            get_from_cache_or_privatize(10, 1.0, 1.0, 1, Some(&mut obf_cache), true, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
+        let result = get_from_cache_or_privatize(
+            10,
+            1.0,
+            1.0,
+            1,
+            Some(&mut obf_cache),
+            true,
+            ObfuscateBelow10Mode::Obfuscate,
+            1,
+            &mut rng,
+        );
         assert!(result.is_ok());
 
         let obfuscated_value = obf_cache.cache.get(&(1, 10, 1));
@@ -261,9 +283,58 @@ mod test {
         let result_ok = result.unwrap();
         assert_eq!(result_ok.clone(), *obfuscated_value.unwrap());
 
-        let result2 =
-            get_from_cache_or_privatize(10, 1.0, 1.0, 1, Some(&mut obf_cache), true, ObfuscateBelow10Mode::Obfuscate, 1, &mut rng);
+        let result2 = get_from_cache_or_privatize(
+            10,
+            1.0,
+            1.0,
+            1,
+            Some(&mut obf_cache),
+            true,
+            ObfuscateBelow10Mode::Obfuscate,
+            1,
+            &mut rng,
+        );
         assert!(result2.is_ok());
         assert_eq!(result_ok, result2.unwrap());
+    }
+}
+
+#[test]
+fn simulation_01() {
+    let mut counts: HashMap<i64, usize> = HashMap::new();
+    let mut rng = rand::thread_rng();
+    use std::fs::File;
+    use std::io::prelude::*;
+
+    let mut dump = File::create("01").unwrap();
+    
+
+    for _n in 1..=10000 {
+        let zblj = laplace(0.0, 1. / 0.1, &mut rng).unwrap().round() as i64;
+        *(counts.entry(zblj).or_insert(0)) += 1;
+    }
+
+    for (key,value) in counts{
+        dump.write(format!("{},{}\n",key,value).as_bytes()).unwrap();
+    }
+}
+
+#[test]
+fn simulation_028() {
+    let mut counts: HashMap<i64, usize> = HashMap::new();
+    let mut rng = rand::thread_rng();
+    use std::fs::File;
+    use std::io::prelude::*;
+
+    let mut dump = File::create("028").unwrap();
+    
+
+    for _n in 1..=10000 {
+        let zblj = laplace(0.0, 1. / 0.28, &mut rng).unwrap().round() as i64;
+        *(counts.entry(zblj).or_insert(0)) += 1;
+    }
+
+    for (key,value) in counts{
+        dump.write(format!("{},{}\n",key,value).as_bytes()).unwrap();
     }
 }
