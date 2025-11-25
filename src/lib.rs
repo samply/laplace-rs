@@ -159,7 +159,7 @@ fn round_parametric(value: f64, step_parameter: usize) -> Result<u64, LaplaceErr
 ///
 /// * `mu` - the mean of the distribution.
 /// * `b` - the scale parameter of the distribution, often equal to `sensitivity`/`epsilon`.
-/// /// * `rng` - random generator.
+/// * `rng` - random generator.
 ///
 /// # Returns
 ///
