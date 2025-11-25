@@ -39,7 +39,7 @@ pub enum ObfuscateBelow10Mode {
 /// * obfuscate_zero - A flag indicating whether zero counts should be obfuscated.
 /// * below_10_obfuscation_mode: 0 - return 0, 1 - return 10, 2 - obfuscate using Laplace distribution and rounding
 /// * rounding_step - The granularity of the rounding.
-/// * `clamping_domain` - optional parameter clamping the distribution to [-clamp_domain, clamp_domain]
+/// * domain_limit - optional parameter limiting the distribution to [-domain_limit, domain_limit]
 /// * rng - A secure random generator for seeded randomness.
 ///
 /// # Returns
@@ -55,11 +55,11 @@ pub fn get_from_cache_or_privatize(
     obfuscate_zero: bool,
     obfuscate_below_10_mode: ObfuscateBelow10Mode,
     rounding_step: usize,
-    clamp_domain: Option<f64>,
+    domain_limit: Option<f64>,
     rng: &mut rand::rngs::ThreadRng,
 ) -> Result<u64, LaplaceError> {
     let obfuscated: u64 = match obf_cache_option {
-        None => privatize(value, delta, epsilon, rounding_step, clamp_domain, rng)?,
+        None => privatize(value, delta, epsilon, rounding_step, domain_limit, rng)?,
         Some(obf_cache) => {
             if !obfuscate_zero && value == 0 {
                 return Ok(0);
@@ -80,7 +80,7 @@ pub fn get_from_cache_or_privatize(
                 Some(obfuscated_reference) => *obfuscated_reference,
                 None => {
                     let obfuscated_value =
-                        privatize(value, delta, epsilon, rounding_step, clamp_domain, rng)?;
+                        privatize(value, delta, epsilon, rounding_step, domain_limit, rng)?;
 
                     obf_cache
                         .cache
@@ -103,7 +103,7 @@ pub fn get_from_cache_or_privatize(
 /// * `sensitivity` - Sensitivity of query.
 /// * `epsilon` - Privacy budget parameter.
 /// * `rounding_step` - Rounding to the given number is performed.
-/// * `clamping_domain` - optional parameter clamping the distribution to [-clamp_domain, clamp_domain]
+/// * `domain_limit` - optional parameter limiting the distribution to [-domain_limit, domain_limit]
 /// * rng - A secure random generator for seeded randomness.
 ///
 /// # Returns
@@ -114,12 +114,12 @@ pub fn privatize(
     sensitivity: f64,
     epsilon: f64,
     rounding_step: usize,
-    clamp_domain: Option<f64>,
+    domain_limit: Option<f64>,
     rng: &mut rand::rngs::ThreadRng,
 ) -> Result<u64, LaplaceError> {
-    let permutation = match clamp_domain {
+    let permutation = match domain_limit {
         Some(f64::INFINITY) | None => laplace(0.0, sensitivity / epsilon, rng)?,
-        Some(boundary) if boundary <= 0. => Err(LaplaceError::InvalidClamping)?,
+        Some(boundary) if boundary <= 0. => Err(LaplaceError::InvalidDomain)?,
         // Resample, if clamped to a specific domain
         Some(boundary) => {
             let mut sample: f64;
@@ -237,13 +237,13 @@ mod test {
         let sensitivity = 10.0;
         let epsilon = 0.5;
         let rounding_step = 10;
-        let clamp_domain = None;
+        let domain_limit = None;
         let result = privatize(
             value,
             sensitivity,
             epsilon,
             rounding_step,
-            clamp_domain,
+            domain_limit,
             &mut rng,
         );
         assert!(result.is_ok());
@@ -256,18 +256,18 @@ mod test {
         let sensitivity = 10.0;
         let epsilon = 0.5;
         let rounding_step = 1;
-        let clamp_domain = 10;
+        let domain_limit = 10;
         for _ in 0..10000 {
             let result = privatize(
                 value,
                 sensitivity,
                 epsilon,
                 rounding_step,
-                Some(clamp_domain as f64),
+                Some(domain_limit as f64),
                 &mut rng,
             )
             .unwrap();
-            assert!(result <= (value + clamp_domain) && result >= (value - clamp_domain));
+            assert!(result <= (value + domain_limit) && result >= (value - domain_limit));
         }
     }
 
