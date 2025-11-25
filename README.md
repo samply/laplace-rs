@@ -5,6 +5,8 @@ The values are obfuscated by perturbing them with random values sampled from a l
 
 Optionally, true zero values can be returned unperturbed. While lowering the privacy level slightly, this can vastly improve subsequent processes for data access control.
 
+If the optional clamping of the Laplace distribution's domain is used for restricting the permutation to the interval `[-clamping_domain, clamping_domain]`, the security properties change: the mechanism is no longer `$(\epsilon,0)$`-differentially private, but only fulfils `$(\epsilon,\delta)$`-differential privacy. The parameter can be calculated as `$\delta(\epsilon,\Delta)=\sup_S\left(Pr[Z\in S]-e^\epsilon Pr[Z\in S-\Delta]\right)_+$` which is the positive supremum.
+
 ## Dependencies
 
 The dependencies Samply.Laplace Rust library requires are:
@@ -36,6 +38,7 @@ const DELTA: f64 = 1.;
 const EPSILON: f64 = 0.1;
 const MU: f64 = 0.;
 const ROUNDING_STEP: usize = 10;
+const clamping_domain = None;
 
 
 fn obfuscate -> Result<u64, LaplaceError> {
@@ -53,6 +56,7 @@ fn obfuscate -> Result<u64, LaplaceError> {
 	    false, // A flag indicating whether zero counts should be obfuscated.
 	    ObfuscateBelow10Mode::Ten, // 0 - return 0, 1 - return 10, 2 - obfuscate using Laplace distribution and rounding
 	    ROUNDING_STEP, // The granularity of the rounding.
+			clamping_domain, // Optional clamping of the Laplace distributions's domain
 	    &mut rng, // A secure random generator for seeded randomness.
 	)?;
 	
