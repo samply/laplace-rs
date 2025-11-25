@@ -5,7 +5,7 @@ The values are obfuscated by perturbing them with random values sampled from a l
 
 Optionally, true zero values can be returned unperturbed. While lowering the privacy level slightly, this can vastly improve subsequent processes for data access control.
 
-If the optional clamping of the Laplace distribution's domain is used for restricting the permutation to the interval `[-clamping_domain, clamping_domain]`, the security properties change: the mechanism is no longer `$(\epsilon,0)$`-differentially private, but only fulfils `$(\epsilon,\delta)$`-differential privacy. The parameter can be calculated as `$\delta(\epsilon,\Delta)=\sup_S\left(Pr[Z\in S]-e^\epsilon Pr[Z\in S-\Delta]\right)_+$` which is the positive supremum.
+If the optional clamping of the Laplace distribution's domain is used for restricting the permutation to the interval `[-clamping_domain, clamping_domain]`, the security properties change: the mechanism is no longer $`(\epsilon,0)`$-differentially private, but only fulfils $`(\epsilon,\delta)`$-differential privacy. The parameter can be calculated as $`\delta(\epsilon,\Delta)=\sup_S\left(Pr[Z\in S]-e^\epsilon Pr[Z\in S-\Delta]\right)_+`$ which is the positive supremum.
 
 ## Dependencies
 
