@@ -1,7 +1,7 @@
 pub mod errors;
 
 use anyhow::Result;
-use rand::distributions::Distribution;
+use rand::distr::Distribution;
 use statrs::distribution::Laplace;
 use std::collections::HashMap;
 
