@@ -11,8 +11,8 @@ If the optional parameter limiting the domain of the Laplace distribution is use
 
 The dependencies Samply.Laplace Rust library requires are:
 - thiserror v2.0.3
-- statrs v0.18.0
-- rand v0.8.5
+- statrs v0.18.0 
+- rand v0.9.0
 - anyhow v1.0.69
 
 ## Getting Started
@@ -38,7 +38,7 @@ const DELTA: f64 = 1.;
 const EPSILON: f64 = 0.1;
 const MU: f64 = 0.;
 const ROUNDING_STEP: usize = 10;
-const domain_limit = None;
+const DOMAIN_LIMIT = None;
 
 
 fn obfuscate -> Result<u64, LaplaceError> {
@@ -56,7 +56,7 @@ fn obfuscate -> Result<u64, LaplaceError> {
 	    false, // A flag indicating whether zero counts should be obfuscated.
 	    ObfuscateBelow10Mode::Ten, // 0 - return 0, 1 - return 10, 2 - obfuscate using Laplace distribution and rounding
 	    ROUNDING_STEP, // The granularity of the rounding.
-			domain_limit, // Optional limitation to the domain of the Laplace distributions
+		DOMAIN_LIMIT, // Optional limitation to the domain of the Laplace distributions
 	    &mut rng, // A secure random generator for seeded randomness.
 	)?;
 	
