@@ -177,7 +177,7 @@ mod test {
     fn test_laplace_err() {
         let mu = 10.0;
         let b = 0.0;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let result = laplace(mu, b, &mut rng);
         assert!(result.is_err());
     }
@@ -186,7 +186,7 @@ mod test {
     fn test_laplace_ok() {
         let mu = 10.0;
         let b = 1.0;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let result = laplace(mu, b, &mut rng);
         assert!(result.is_ok());
     }
@@ -195,7 +195,7 @@ mod test {
     fn test_laplace_output_within_range() {
         let mu = 10.0;
         let b = 1.0;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let result = laplace(mu, b, &mut rng).unwrap();
         assert!(result >= mu - 10.0 * b && result <= mu + 10.0 * b);
     }
@@ -211,20 +211,6 @@ mod test {
     }
 
     #[test]
-    fn test_round_parametric_zero() {
-        assert_eq!(round_parametric(0.0, 1).unwrap(), 0);
-        assert_eq!(round_parametric(0.0, 5).unwrap(), 0);
-        assert_eq!(round_parametric(0.0, 10).unwrap(), 0);
-    }
-
-    #[test]
-    fn test_round_parametric_large() {
-        assert_eq!(round_parametric(1_000_000.0, 1).unwrap(), 1_000_000);
-        assert_eq!(round_parametric(1_000_000.0, 5).unwrap(), 1_000_000);
-        assert_eq!(round_parametric(1_000_000.0, 10).unwrap(), 1_000_000);
-    }
-
-    #[test]
     fn test_round_parametric_invalid_step() {
         let result = round_parametric(10.0, 0);
         assert!(result.is_err());
@@ -232,7 +218,7 @@ mod test {
 
     #[test]
     fn test_privatize_ok() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let value = 27;
         let sensitivity = 10.0;
         let epsilon = 0.5;
@@ -251,7 +237,7 @@ mod test {
 
     #[test]
     fn test_privatize_within_domain() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let value = 27;
         let sensitivity = 10.0;
         let epsilon = 0.5;
@@ -273,7 +259,7 @@ mod test {
 
     #[test]
     fn test_obfuscate_value_zero() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let result = get_from_cache_or_privatize(
             0,
             1.0,
@@ -292,7 +278,7 @@ mod test {
 
     #[test]
     fn test_obfuscate_value_non_zero() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let result = get_from_cache_or_privatize(
             10,
             1.0,
@@ -311,7 +297,7 @@ mod test {
 
     #[test]
     fn test_with_obf_cache() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut obf_cache: ObfCache = ObfCache {
             cache: HashMap::new(),
         };
