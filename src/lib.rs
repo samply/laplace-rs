@@ -1,6 +1,5 @@
 pub mod errors;
 
-use anyhow::Result;
 use rand::distr::Distribution;
 use statrs::distribution::Laplace;
 use std::collections::HashMap;
@@ -177,7 +176,7 @@ mod test {
     fn test_laplace_err() {
         let mu = 10.0;
         let b = 0.0;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let result = laplace(mu, b, &mut rng);
         assert!(result.is_err());
     }
@@ -186,7 +185,7 @@ mod test {
     fn test_laplace_ok() {
         let mu = 10.0;
         let b = 1.0;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let result = laplace(mu, b, &mut rng);
         assert!(result.is_ok());
     }
@@ -195,7 +194,7 @@ mod test {
     fn test_laplace_output_within_range() {
         let mu = 10.0;
         let b = 1.0;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let result = laplace(mu, b, &mut rng).unwrap();
         assert!(result >= mu - 10.0 * b && result <= mu + 10.0 * b);
     }
@@ -232,7 +231,7 @@ mod test {
 
     #[test]
     fn test_privatize_ok() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let value = 27;
         let sensitivity = 10.0;
         let epsilon = 0.5;
@@ -251,7 +250,7 @@ mod test {
 
     #[test]
     fn test_privatize_within_domain() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let value = 27;
         let sensitivity = 10.0;
         let epsilon = 0.5;
@@ -273,7 +272,7 @@ mod test {
 
     #[test]
     fn test_obfuscate_value_zero() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let result = get_from_cache_or_privatize(
             0,
             1.0,
@@ -292,7 +291,7 @@ mod test {
 
     #[test]
     fn test_obfuscate_value_non_zero() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let result = get_from_cache_or_privatize(
             10,
             1.0,
@@ -311,7 +310,7 @@ mod test {
 
     #[test]
     fn test_with_obf_cache() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut obf_cache: ObfCache = ObfCache {
             cache: HashMap::new(),
         };
